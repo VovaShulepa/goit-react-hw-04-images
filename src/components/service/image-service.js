@@ -12,15 +12,16 @@ export const getImages = async (query, page) => {
     orientation: 'horizontal',
     per_page: 12,
   };
-  const { data } = await axios.get(`${axios.defaults.baseURL}`, { params });
 
-  const images = data.hits.map(({ id, tags, webformatURL, largeImageURL }) => ({
+  const response = await axios.get(`${axios.defaults.baseURL}`, { params });
+
+  return response.data;
+};
+
+export const normalizeImages = images =>
+  images.map(({ id, tags, webformatURL, largeImageURL }) => ({
     id,
     tags,
     webformatURL,
     largeImageURL,
   }));
-
-  const totalPages = Math.ceil(data.totalHits / params.per_page);
-  return { images, totalPages };
-};

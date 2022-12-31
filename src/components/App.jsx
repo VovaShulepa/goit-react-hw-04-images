@@ -1,131 +1,109 @@
-import React, { Component } from 'react';
-import * as ImageService from './service/image-service';
+import React from 'react';
+import { useState, useEffect } from 'react';
+import { getImages, normalizeImages } from './service/image-service';
 
 import { Searchbar } from './Searchbar/Searchbar';
 import { ImageGallery } from './ImageGallery/ImageGallery';
 import { Loader } from './Loader/Loader';
 import { Button } from './Button/Button';
 import { Modal } from './Modal/Modal';
-export class App extends Component {
-  state = {
-    images: [],
-    isLoading: false,
-    page: 1,
-    query: '',
-    error: '',
-    openModal: false,
-    largeImgUrl: '',
-    emptyRequest: false,
-  };
 
-  componentDidUpdate = async (_, prevState) => {
-    const { query, page } = this.state;
-    if (prevState.query !== query || prevState.page !== page) {
-      this.getImages();
-    }
-  };
+export const App = () => {
+  const [images, setImages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [error, setError] = useState('');
+  const [largeImgUrl, setLargeImgUrl] = useState('');
+  const [emptyRequest, setEmptyRequest] = useState(false);
+  const [totalImages, setTotalImages] = useState(0);
 
-  getQuery = queryText => {
-    this.setState({
-      query: queryText.text,
-      images: [],
-      page: 1,
-      totalHits: 0,
-      emptyRequest: false,
-    });
-  };
+  useEffect(() => {
+    if (!query) return;
 
-  handleImgClick = largeImgUrl => {
-    this.setState({
-      openModal: true,
-      largeImgUrl,
-    });
-  };
+    const fetchImages = async () => {
+      setIsLoading(true);
+      setError('');
 
-  handleLoadMore = () => {
-    this.setState(({ page }) => ({ page: page + 1 }));
-  };
+      try {
+        const { hits, totalHits } = await getImages(query, page);
 
-  getImages = async () => {
-    const { query, page } = this.state;
-    this.setState({ isLoading: true });
+        const normalizedImages = normalizeImages(hits);
 
-    try {
-      const { images, totalPages } = await ImageService.getImages(query, page);
-
-      if (images.length === 0) {
-        this.setState({ emptyRequest: true });
-        return;
+        if (normalizedImages.length === 0) {
+          setEmptyRequest(true);
+          return;
+        }
+        setImages(prev => [...prev, ...normalizedImages]);
+        setTotalImages(totalHits);
+      } catch (error) {
+        setError('Server not answering');
+      } finally {
+        setIsLoading(false);
       }
+    };
+    fetchImages();
+  }, [query, page]);
 
-      this.setState(prevState => {
-        return {
-          images: [...prevState.images, ...images],
-          totalPages,
-        };
-      });
-    } catch (error) {
-      this.setState({ error: 'Server not answering' });
-    } finally {
-      this.setState({ isLoading: false });
+  const getQuery = queryText => {
+    if (queryText === query) {
+      alert('You enter the same query, please try something else 🙌');
+      return;
     }
+    setQuery(queryText);
+    setImages([]);
+    setPage(1);
+    setEmptyRequest(false);
   };
 
-  render() {
-    const {
-      images,
-      isLoading,
-      error,
-      largeImgUrl,
-      emptyRequest,
-      query,
-      totalPages,
-      page,
-    } = this.state;
+  const handleImgClick = largeImgUrl => {
+    setLargeImgUrl(largeImgUrl);
+  };
 
-    const showGallery = images.length > 0;
-    const showError = error.length > 0;
+  const handleLoadMore = () => {
+    setPage(prev => prev + 1);
+    console.log('load');
+  };
 
-    return (
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr',
-          gridGap: '16px',
-          paddingBottom: '24px',
-        }}
-      >
-        <div>
-          <div class="wave"></div>
-          <div class="wave"></div>
-          <div class="wave"></div>
-        </div>
-        <Searchbar onSubmit={this.getQuery} />
-        {showError && (
-          <p>
-            Ooops, something went wrong...<b>{error}</b>
-          </p>
-        )}
-        {emptyRequest && (
-          <p>
-            Please enter your request <b>{query}</b> correctly and try one more
-            time 🙏
-          </p>
-        )}
-        {isLoading && <Loader />}
-        {showGallery && (
-          <ImageGallery onImageClick={this.handleImgClick} images={images} />
-        )}
-        {images.length > 0 && totalPages > page && !isLoading && (
-          <Button onClick={this.handleLoadMore} />
-        )}
-        {largeImgUrl && (
-          <Modal
-            largeImgUrl={largeImgUrl}
-            handleImgClick={this.handleImgClick}
-          />
-        )}
+  const showGallery = images.length > 0;
+  const showError = error.length > 0;
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gridGap: '16px',
+        paddingBottom: '24px',
+      }}
+    >
+      <div>
+        <div class="wave"></div>
+        <div class="wave"></div>
+        <div class="wave"></div>
       </div>
-    );
-  }
-}
+      <Searchbar onSubmit={getQuery} />
+      {showError && (
+        <p>
+          Ooops, something went wrong...<b>{error}</b>
+        </p>
+      )}
+      {emptyRequest && (
+        <p>
+          Please enter your request <b>{query}</b> correctly and try one more
+          time 🙏
+        </p>
+      )}
+      {isLoading && <Loader />}
+      {showGallery && (
+        <ImageGallery onImageClick={handleImgClick} images={images} />
+      )}
+      {images.length > 0 && totalImages > page && !isLoading && (
+        <Button onClick={handleLoadMore} />
+      )}
+      {largeImgUrl && (
+        <Modal largeImgUrl={largeImgUrl} handleImgClick={handleImgClick} />
+      )}
+    </div>
+  );
+};
